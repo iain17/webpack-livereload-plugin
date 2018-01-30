@@ -7,16 +7,14 @@ function LiveReloadPlugin(options) {
   this.port = this.options.port || 35729;
   this.ignore = this.options.ignore || null;
   this.quiet = this.options.quiet || false;
-
-  // add delay, but remove it from options, so it doesn't get passed to tinylr
-  this.delay = this.options.delay || 0;
-  delete this.options.delay;
+  this.cbNotify = this.options.cbNotify || false;
 
   this.lastHash = null;
   this.lastChildHashes = [];
   this.protocol = this.options.protocol ? this.options.protocol + ':' : '';
   this.hostname = this.options.hostname || '" + location.hostname + "';
   this.server = null;
+  this.payload = null;
 }
 
 function arraysEqual(a1, a2){
@@ -52,6 +50,15 @@ LiveReloadPlugin.prototype.start = function start(watching, cb) {
   }
 };
 
+LiveReloadPlugin.prototype.notify = function notify() {
+  if (this.isRunning && this.payload) {
+      console.log('notifying...');
+      this.server.notifyClients(this.payload);
+  } else {
+      console.log('not ready yet...');
+  }
+}
+
 LiveReloadPlugin.prototype.done = function done(stats) {
   var hash = stats.compilation.hash;
   var childHashes = (stats.compilation.children || []).map(child => child.hash);
@@ -63,9 +70,15 @@ LiveReloadPlugin.prototype.done = function done(stats) {
   if (this.isRunning && (hash !== this.lastHash || !arraysEqual(childHashes, this.lastChildHashes)) && include.length > 0) {
     this.lastHash = hash;
     this.lastChildHashes = childHashes;
-    setTimeout(function onTimeout() {
-      this.server.notifyClients(include);
-    }.bind(this), this.delay);
+    if(!this.cbNotify) {
+      console.log('notifying...');
+      setTimeout(function onTimeout() {
+          this.server.notifyClients(include);
+      }.bind(this));
+    } else {
+        console.log('setting payload.');
+        this.payload = include;
+    }
   }
 };
 
